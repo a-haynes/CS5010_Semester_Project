@@ -84,11 +84,20 @@ def update_graph(xaxis_column_name, yaxis_column_name,
     sub_df = df_cfb[df_cfb['Year'] == year_value]
     if conference_value != 'FBS' :
         sub_df = sub_df[sub_df['Conference'] == conference_value]
-    fig = px.scatter(x=sub_df[sub_df['Indicator Name'] == xaxis_column_name]['Value'],
-            y=sub_df[sub_df['Indicator Name'] == yaxis_column_name]['Value'],
-            hover_name=sub_df[sub_df['Indicator Name'] == yaxis_column_name]['School'],
-            opacity=0
-            )
+    try :
+        fig = px.scatter(x=sub_df[sub_df['Indicator Name'] == xaxis_column_name]['Value'],
+                y=sub_df[sub_df['Indicator Name'] == yaxis_column_name]['Value'],
+                hover_name=sub_df[sub_df['Indicator Name'] == yaxis_column_name]['School'],
+                opacity=0
+                )
+    except :
+        xaxis_column_name = 'Win'
+        yaxis_column_name = 'Win'
+        fig = px.scatter(x=sub_df[sub_df['Indicator Name'] == xaxis_column_name]['Value'],
+                y=sub_df[sub_df['Indicator Name'] == yaxis_column_name]['Value'],
+                hover_name=sub_df[sub_df['Indicator Name'] == yaxis_column_name]['School'],
+                opacity=0
+                )
     fig.update_traces(customdata=sub_df[sub_df['Indicator Name'] == yaxis_column_name]['School'])
     
     # Defining axis range so we can properly scale images
