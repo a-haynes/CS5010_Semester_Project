@@ -10,12 +10,13 @@ import pandas as pd
 
 from cfb_dictionaries import logos, nicknames
 
-dataset_url = 'https://raw.githubusercontent.com/a-haynes/CS5010_Semester_Project/main/datasets/cfb'
+dataset_url = 'https://raw.githubusercontent.com/tjmcintyre/CS5010_Semester_Project/main/datasets/cfb'
 
 def make_df_cfb(year):
     df_year = pd.read_csv(dataset_url + str(year)[-2:] + '.csv')
     df_year['Year'] = year
     df_year['WinPct']=df_year.Win / df_year.Games
+    # Manually fixing some mismatched abbreviations
     df_year.Team=df_year.Team.replace({"App State (Sun Belt)":"Appalachian State (Sun Belt)"})
     df_year.Team=df_year.Team.replace({"Fla. Atlantic (C-USA)":"Florida Atlantic (C-USA)"})
     df_year.Team=df_year.Team.replace({"Ga. Southern (Sun Belt)":"Georgia Southern (Sun Belt)"})
@@ -38,8 +39,9 @@ def make_df_cfb(year):
     df_year.Team=df_year.Team.replace({"New Mexico State (FBS Independent)":"Middle Tennessee (C-USA)"})
     df_year.Team=df_year.Team.replace({"South Fla. (AAC)":"South Florida (AAC)"})
     df_year.Team=df_year.Team.replace({"Miami (FL) (ACC)":"Miami -FL- (ACC)","Miami (OH) (MAC)":"Miami -OH- (MAC)"})
+    # Splitting Team column from "School (Conference)" into two separate columns 
     df_team=pd.DataFrame(df_year.Team.str.split("(",1).tolist(), columns = ['School','Conference'])
-    df_conf=pd.DataFrame(df_team.Conference.str.split(")",1).tolist(), columns = ['Conference','x'])
+    df_conf=pd.DataFrame(df_team.Conference.str.split(")",1).tolist(), columns = ['Conference',''])
     df_year['School'] = df_team.School.str.strip()
     df_year.School=df_year.School.replace({"Miami -FL-":"Miami (FL)","Miami -OH-":"Miami (OH)"})
     df_year['Conference'] = df_conf.Conference
@@ -59,10 +61,8 @@ df_2020 = make_df_cfb(2020)
 
 
 #Merging datasets into one dataframe
-frames = [df_2013, df_2014, df_2015, df_2016, df_2017, df_2017, df_2018, df_2019,
-          df_2020]
-df_cfb = pd.concat(frames)
-df_cfb2 = df_cfb
+df_cfb = pd.concat([df_2013, df_2014, df_2015, df_2016, df_2017, df_2017, df_2018, df_2019,
+          df_2020])
 
 indicators = []
 for col in df_cfb.columns:
@@ -70,8 +70,11 @@ for col in df_cfb.columns:
         indicators.append(col)
 identifiers = ['Year', 'School', 'Nickname', 'Conference', 'Logo'] 
 
+# Adding Logo and Nickname to the dataframe
 df_cfb['Logo'] = df_cfb.School.map(logos)
 df_cfb['Nickname'] = df_cfb.School.map(nicknames)
+
+# Unpivoting dataframe on indicators list
 df_cfb = df_cfb.melt(id_vars=identifiers, value_vars=indicators)
 df_cfb = df_cfb.rename(columns={"variable": "Indicator Name","value": "Value"})
 df_cfb = df_cfb.dropna()

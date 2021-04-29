@@ -9,7 +9,10 @@ Created on Tue Mar 23 14:52:14 2021
 import requests
 import pandas as pd
 from bs4 import BeautifulSoup
+import matplotlib.pyplot as plt
+from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 import numpy as np
+
 
 dataset_url = 'https://raw.githubusercontent.com/a-haynes/CS5010_Semester_Project/main/datasets/cfb'
 
@@ -37,6 +40,7 @@ frames = [df_2013, df_2014, df_2015, df_2016, df_2017, df_2017, df_2018, df_2019
 df_stats = pd.concat(frames)
 df_stats = df_stats.dropna(axis=1)
 
+#Creating Win Percentage Column
 df_stats['WinPct']=df_stats.Win / df_stats.Games
 
 df_stats.Team = df_stats.Team.apply(lambda x: x.replace('St.', 'State'))
@@ -144,7 +148,7 @@ df_stats = df_stats.dropna()
 
 df_stats = df_stats.melt(id_vars=identifiers, value_vars=indicators)
 
-df_stats = df_stats.rename(columns={"variable": "Indicator Name","value": "Value"})
+df_stats = df_stats.rename(columns={"variable": "Indicator Name"})
 
 import dash
 import dash_core_components as dcc
@@ -154,34 +158,43 @@ import plotly.express as px
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
-app = Dash(__name__, external_stylesheets=external_stylesheets)
+app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
 available_indicators = df_stats['Indicator Name'].unique()
 
 available_conferences = df_stats['Conference'].unique()
 
-available_conferences = np.append(available_conferences,('FBS'))
-
-available_years = df_stats['Year'].unique()
+available_conferences = available_conferences.append('FBS')
 
 app.layout = html.Div([
     html.Div([
-
         html.Div([
-            html.Label(['X-variable Selection',dcc.Dropdown(
+            dcc.Dropdown(
                 id='crossfilter-xaxis-column',
                 options=[{'label': i, 'value': i} for i in available_indicators],
-                value='Def.Rank'
-            )]),
+                value='Fertility rate, total (births per woman)'
+            ),
+            dcc.RadioItems(
+                id='crossfilter-xaxis-type',
+                options=[{'label': i, 'value': i} for i in ['Linear', 'Log']],
+                value='Linear',
+                labelStyle={'display': 'inline-block'}
+            )
         ],
         style={'width': '49%', 'display': 'inline-block'}),
 
         html.Div([
-            html.Label(['Y-variable Selection',dcc.Dropdown(
+            dcc.Dropdown(
                 id='crossfilter-yaxis-column',
                 options=[{'label': i, 'value': i} for i in available_indicators],
-                value='WinPct'
-            )]),
+                value='Life expectancy at birth, total (years)'
+            ),
+            dcc.RadioItems(
+                id='crossfilter-yaxis-type',
+                options=[{'label': i, 'value': i} for i in ['Linear', 'Log']],
+                value='Linear',
+                labelStyle={'display': 'inline-block'}
+            )
         ], style={'width': '49%', 'float': 'right', 'display': 'inline-block'})
     ], style={
         'borderBottom': 'thin lightgrey solid',
@@ -190,17 +203,17 @@ app.layout = html.Div([
     }),
         
     html.Div([
-        html.Label(['Conference Filter',dcc.Dropdown(
-            id='conference-filter',
+        dcc.Dropdown(
+            id='division-filter',
             options=[{'label': i, 'value': i} for i in available_conferences],
-            value='FBS'
-        )]),
-    ], style={'width': '100%', 'display': 'inline-block', 'padding': '0 20'}), 
+            value='Fertility rate, total (births per woman)'
+        )
+    ], style={'width': '100%', 'display': 'inline-block', 'padding': '0 20'}),     
 
     html.Div([
         dcc.Graph(
             id='crossfilter-indicator-scatter',
-            hoverData={'points': [{'customdata': 'Virginia'}]}
+            hoverData={'points': [{'customdata': 'Japan'}]}
         )
     ], style={'width': '49%', 'display': 'inline-block', 'padding': '0 20'}),
     html.Div([
@@ -208,87 +221,54 @@ app.layout = html.Div([
         dcc.Graph(id='y-time-series'),
     ], style={'display': 'inline-block', 'width': '49%'}),
 
-    html.Div(
-        html.Label(['Select Year',dcc.Dropdown(
-        id='crossfilter-year--dropdown',
-            options=[{'label': i, 'value': i} for i in available_years],
-            value=2020
-    )]), style={'width': '49%', 'padding': '0px 20px 20px 20px'})
+    html.Div(dcc.Slider(
+        id='crossfilter-year--slider',
+        min=df_stats['Year'].min(),
+        max=df_stats['Year'].max(),
+        value=df_stats['Year'].max(),
+        marks={str(year): str(year) for year in df_stats['Year'].unique()},
+        step=None
+    ), style={'width': '49%', 'padding': '0px 20px 20px 20px'})
 ])
-        
+
 
 @app.callback(
     dash.dependencies.Output('crossfilter-indicator-scatter', 'figure'),
     [dash.dependencies.Input('crossfilter-xaxis-column', 'value'),
      dash.dependencies.Input('crossfilter-yaxis-column', 'value'),
-     dash.dependencies.Input('crossfilter-year--dropdown', 'value'),
-     dash.dependencies.Input('conference-filter', 'value')])
+     dash.dependencies.Input('crossfilter-xaxis-type', 'value'),
+     dash.dependencies.Input('crossfilter-yaxis-type', 'value'),
+     dash.dependencies.Input('crossfilter-year--slider', 'value')])
 def update_graph(xaxis_column_name, yaxis_column_name,
-                 year_value, conference_value):
+                 xaxis_type, yaxis_type,
+                 year_value):
     dff = df_stats[df_stats['Year'] == year_value]
-    
-    if conference_value != 'FBS' :
-        dff = dff[dff['Conference'] == conference_value]
 
     fig = px.scatter(x=dff[dff['Indicator Name'] == xaxis_column_name]['Value'],
             y=dff[dff['Indicator Name'] == yaxis_column_name]['Value'],
-            hover_name=dff[dff['Indicator Name'] == yaxis_column_name]['School'],
-            opacity=0
+            hover_name=dff[dff['Indicator Name'] == yaxis_column_name]['School']
             )
 
     fig.update_traces(customdata=dff[dff['Indicator Name'] == yaxis_column_name]['School'])
 
-    xmin = dff[dff['Indicator Name'] == xaxis_column_name]['Value'].min()
-    
-    xmax = dff[dff['Indicator Name'] == xaxis_column_name]['Value'].max()
-    
-    ymin = dff[dff['Indicator Name'] == yaxis_column_name]['Value'].min()
-    
-    ymax = dff[dff['Indicator Name'] == yaxis_column_name]['Value'].max()
-    
-    xlim = [xmin*.95, xmax*1.05]
-    
-    ylim = [ymin*.95, ymax*1.05]    
+    fig.update_xaxes(title=xaxis_column_name, type='linear' if xaxis_type == 'Linear' else 'log')
 
-    fig.update_xaxes(title=xaxis_column_name, type='linear', showgrid=False)
+    fig.update_yaxes(title=yaxis_column_name, type='linear' if yaxis_type == 'Linear' else 'log')
 
-    fig.update_yaxes(title=yaxis_column_name, type='linear',showgrid=False)
-
-    fig.update_layout(margin={'l': 40, 'b': 40, 't': 10, 'r': 0}, hovermode='closest',
-                      xaxis=dict(range=[xlim[0],xlim[1]]), 
-                      yaxis=dict(range=[ylim[0],ylim[1]]))
-    
-    for x_cord, y_cord, path in zip(dff[dff['Indicator Name'] == xaxis_column_name]['Value'],
-                          dff[dff['Indicator Name'] == yaxis_column_name]['Value'],
-                          dff['Logo']):
-        fig.add_layout_image(
-        dict(
-            source=path,
-            xref="x",
-            yref="y",
-            x=x_cord,
-            y=y_cord,
-            sizex=(xmax-xmin)*0.1,
-            sizey=(ymax-ymin)*0.1,
-            opacity=1,
-            xanchor="center", yanchor="middle",
-            layer="below")
-        ) 
-       
+    fig.update_layout(margin={'l': 40, 'b': 40, 't': 10, 'r': 0}, hovermode='closest')
 
     return fig
 
 
-def create_time_series(dff, title, axis_name):
+def create_time_series(dff, axis_type, title):
 
-    fig = px.scatter(dff, x='Year', y='Value', labels={
-                     "Value": axis_name})
+    fig = px.scatter(dff, x='Year', y='Value')
 
     fig.update_traces(mode='lines+markers')
 
     fig.update_xaxes(showgrid=False)
 
-    fig.update_yaxes(showgrid=False)
+    fig.update_yaxes(type='linear' if axis_type == 'Linear' else 'log')
 
     fig.add_annotation(x=0, y=0.85, xanchor='left', yanchor='bottom',
                        xref='paper', yref='paper', showarrow=False, align='left',
@@ -302,25 +282,25 @@ def create_time_series(dff, title, axis_name):
 @app.callback(
     dash.dependencies.Output('x-time-series', 'figure'),
     [dash.dependencies.Input('crossfilter-indicator-scatter', 'hoverData'),
-     dash.dependencies.Input('crossfilter-xaxis-column', 'value')])
-def update_x_timeseries(hoverData, xaxis_column_name):
-    school_name = hoverData['points'][0]['customdata']
-    dff = df_stats[df_stats['School'] == school_name]
+     dash.dependencies.Input('crossfilter-xaxis-column', 'value'),
+     dash.dependencies.Input('crossfilter-xaxis-type', 'value')])
+def update_y_timeseries(hoverData, xaxis_column_name, axis_type):
+    country_name = hoverData['points'][0]['customdata']
+    dff = df_stats[df_stats['School'] == country_name]
     dff = dff[dff['Indicator Name'] == xaxis_column_name]
-    title = '<b>{}</b><br>{}'.format(school_name, xaxis_column_name)
-    return create_time_series(dff, title, xaxis_column_name)
+    title = '<b>{}</b><br>{}'.format(country_name, xaxis_column_name)
+    return create_time_series(dff, axis_type, title)
 
 
 @app.callback(
     dash.dependencies.Output('y-time-series', 'figure'),
     [dash.dependencies.Input('crossfilter-indicator-scatter', 'hoverData'),
-     dash.dependencies.Input('crossfilter-yaxis-column', 'value')])
-def update_y_timeseries(hoverData, yaxis_column_name):
-    school_name = hoverData['points'][0]['customdata']
+     dash.dependencies.Input('crossfilter-yaxis-column', 'value'),
+     dash.dependencies.Input('crossfilter-yaxis-type', 'value')])
+def update_x_timeseries(hoverData, yaxis_column_name, axis_type):
     dff = df_stats[df_stats['School'] == hoverData['points'][0]['customdata']]
     dff = dff[dff['Indicator Name'] == yaxis_column_name]
-    title = '<b>{}</b><br>{}'.format(school_name, yaxis_column_name)
-    return create_time_series(dff, title, yaxis_column_name)
+    return create_time_series(dff, axis_type, yaxis_column_name)
 
 
 if __name__ == '__main__':

@@ -13,7 +13,7 @@ table_body = table.find('tbody')
 rows = table_body.find_all('tr')
 
 # Finding the nth occurance of a substring in a string, 
-# Used for parsing Wikipedia table
+# Used for parsing through \n's in Wikipedia table
 def find_nth(string, substring, n):
     start = string.find(substring)
     while start >= 0 and n > 1:
@@ -21,10 +21,18 @@ def find_nth(string, substring, n):
         n -= 1
     return start
 
-nicknames = {}
-team_names = {}
+nicknames = {} # Ex: Cavaliers
+team_names = {} # Ex: Virginia Cavaliers
+# Kaggle only contains Schools.
+# ESPN has School + Nicknames (team_names) as single string.
+# Pulling School and Nicknames into separate lists from Wikipedia
+# makes linking the two easier, espcially in the case where one School name
+# is contained in another, e.g. Virginia and Virginia Tech, and not erroneously
+# parsing Virginia Tech : Hokies as Virginia : Tech Hokies
 
-for team in rows[1:]:
+
+# Running through each row 
+for team in rows[1:]: # Skip first row to avoid table headers
     school = team.get_text()[find_nth(team.get_text(),'\n', 1)+1:
                                 find_nth(team.get_text(),'\n', 2)]
     nickname = team.get_text()[find_nth(team.get_text(),'\n', 3)+1:
@@ -52,6 +60,7 @@ for team in all_team_items:
         team_id = team['data-clubhouse-uid'].partition('t:')[2]
         team_logo = "https://a.espncdn.com/combiner/i?img=/i/teamlogos/ncaa/500/"\
             + team_id + ".png&h=50&w=50"
+            # Manually fixing some mismatched abbreviations
         if (team.get_text() == 'Miami Hurricanes') :
             logos['Miami (FL)'] = team_logo
         elif (team.get_text() == 'Southern Mississippi Golden Eagles'):
